@@ -1,7 +1,15 @@
+## Cmake 目的
+
+- 解决**跨平台编译**问题
+  - 统一描述项目结构
+  - 然后生成不同平台的构建系统
+- **构建图**(通过声明 **Target** 和**依赖关系**)而非**构建命令**(cmake ..配置 + 生成)
+- 根据平台开始构建
+
+
 ## Cmake 理念
 
 不往全局加东西, 而是**精准**往某个**target**加属性
-
 
 
 # GitHub 项目 cmake-examples
@@ -190,8 +198,6 @@
     - build（构建阶段）
       - 整理完所有配置后, 获取完整的信息, **开始构建**
 
-- 其他地方如何正确引用头**文件??**
-
 - 三个关**键字??**
 
   - 这三个关键字在 CMake 中是统一语义：
@@ -202,3 +208,79 @@
     | target_include_directories | 只自己用   | 自己+依赖者 | 只给依赖者  |
     | target_compile_definitions | 只自己     | 自己+依赖者 | 只依赖者    |
     | target_link_libraries      | 只自己     | 自己+依赖者 | 只依赖者    |
+
+- 例子
+
+  - 如何引用头文件? 头文件冲突问题 ? 什么是 header-only ? 
+
+  - ~~~tex
+    project/
+    ├── app/
+    │   └── app.c
+    ├── math/
+    │   ├── include/
+    │   │   └── math.h
+    │   └── src/
+    │       └── math.c
+    └── utils/
+        └── include/
+            └── log.h
+            
+    ~~~
+
+  - ~~~cmake
+    # utils 库
+    add_library(utils INTERFACE)
+    target_include_directories(utils INTERFACE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/utils/include
+    )
+    
+    # math 库
+    add_library(math math/src/math.c)
+    target_include_directories(math PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/math/include
+    )
+    target_link_libraries(math PUBLIC utils)  # 传递依赖
+    
+    # app 可执行文件
+    add_executable(app app/app.c)
+    target_link_libraries(app PRIVATE math)  # 自动获得所有必要的包含路径
+    ~~~
+
+  - 为什么app **能引用**util下的**头文件**?
+
+    - 得益于Cmake设计的传递依赖: math 知道 utils 的信息. 所以 app 链接了 math, 就知道utils了
+
+  - 如果app链接的东西中, 有**多个log.h**冲突怎么办?
+
+    - 需要依赖**好的项目结构**
+
+      - 目录命名空间: (大公司解决方案)
+
+        - ~~~tex
+          原来:
+          utils/
+          └── include/
+              └── log.h
+          
+          
+          改为
+          utils/
+          └── include/
+              └── utils/
+                  └── log.h
+          ~~~
+
+  - header-only:
+
+    - 什么是header-only
+      - 库的属性是 **INTERFACE**. 只给别人用
+    - 什么场景用?
+      - 申明和实现**都在.h 文件**
+      - **工具类**使用
+
+
+
+## 注意:
+
+- 对于引用其它地方文件, 最好**不要直接**写路径. 而是通过**库的形式**去链接
