@@ -3,6 +3,7 @@
 - 解决**跨平台编译**问题
   - 统一描述项目结构
   - 然后生成不同平台的构建系统
+
 - **构建图**(通过声明 **Target** 和**依赖关系**)而非**构建命令**(cmake ..配置 + 生成)
 - 根据平台开始构建
 
@@ -10,6 +11,11 @@
 ## Cmake 理念
 
 不往全局加东西, 而是**精准**往某个**target**加属性
+
+target**两种**属性
+
+- 构建产物(为自己)
+- Usage Requirements(为别人)
 
 
 # GitHub 项目 cmake-examples
@@ -29,10 +35,8 @@
   - 平台相关
     -  CMAKE_SYSTEM_NAME        # Linux / Windows / Darwin
     -  CMAKE_SYSTEM_PROCESSOR   # x86_64 / arm / aarch64
-- 注意:
-  - CMake文件或者其内容改动时（包括文件路径、编译选项等）， 需要**全编译** --- ???
 
-## add
+## add  (创建target)
 
 如何将项目代码**节点化**
 
@@ -42,7 +46,24 @@
 
 
 
-## target
+
+
+## target(类型)
+
+- STATIC
+- SHARED
+- INTERFACE
+  - 申明依赖关系,并不参与构建
+- IMPORTED
+  - 外部库
+- OBJECT
+- ALIAS
+
+
+
+
+
+## target (配置target属性)
 
 如何解决**全局污染**问题
 
@@ -52,6 +73,7 @@
   - PUBLIC / PRIVATE / INTERFACE⭐⭐
 - target_sources
 - target_link_libraries
+- target_compile_options
 
 
 
@@ -93,7 +115,24 @@
 - CMAKE_BINARY_DIR, CMAKE_CURRENT_BINARY_DIR, PROJECT_BINARY_DIR
   - build的路径,用于存放中间文件
 
+---
 
+## 三个关键字
+
+### INTERFACE
+
+**目的**: 为别人服务(target**第二**属性), 不参与生成(target**第一**属性). 
+
+​	 声明依赖传播规则
+
+**场景**:
+
+- **工具类**函数 (只有头文件)
+- 利用申明依赖, 去组成**库组**(解决重复写代码问题)  -- 指定链接规则. 但自身不产生构建
+
+
+
+---
 
 
 ## 添加cpp
@@ -158,7 +197,17 @@
       message(FATAL_ERROR "致命错误: ${变量名} - 会停止执行")
       ```
 
-      
+- add其它
+
+  - add_dependencies
+  - add_custom_command / add_custom_target
+
+- target 其它
+
+  - target_compile_options
+    - 例子: target_compile_options(mylib PUBLIC -Wall)
+  - target_compile_features
+    - 例子: target_compile_features(mylib PUBLIC cxx_std_20)
 
 ## 问题
 
@@ -186,7 +235,6 @@
     - **不一定**, 看被链接前, 是否被创建
       - **target**  具有**全局唯一性**!!!, 所以不依赖只能看子结构!!!, 全局都能访问
       - 但在依赖前, 一定要**先被创建** (因为是cmake是**顺序执行**的)
-    - 万一现在项目很大又发生这种情况,**怎么办??**
 
 - 现在有add_library(liblxm); 然后在项目100个地方都在target_sources. **问题是**, 在项目的某个地方去链接这个liblxm时, 这时编译器能知道其它还未target_sources 的liblxm吗 ? (属性如何具备完整性)
 
@@ -204,8 +252,8 @@
 
     | 命令                       | PRIVATE    | PUBLIC      | INTERFACE   |
     | -------------------------- | ---------- | ----------- | ----------- |
-    | target_sources             | 只编译本库 | 几乎没意义  | header-only |
-    | target_include_directories | 只自己用   | 自己+依赖者 | 只给依赖者  |
+    | target_sources             | 只编译本库 | 几乎没意义  | 只给依赖者  |
+    | target_include_directories | 只自己用   | 自己+依赖者 | header-only |
     | target_compile_definitions | 只自己     | 自己+依赖者 | 只依赖者    |
     | target_link_libraries      | 只自己     | 自己+依赖者 | 只依赖者    |
 
