@@ -50,13 +50,33 @@ target**两种**属性
 
 ## target(类型)
 
-- STATIC
-- SHARED
+- **STATIC**
+  - **优点**:
+    - 运行时不依赖库, 部署简单, 不存在版本冲突. 代码保密
+  - **缺点**:
+    - 文件大,  多个程序内存**无法共享**
+  - 使用**场景**
+    - 核心**基础**模块(不怎么变化)
+    - 部署麻烦的场景
+- **SHARED**
+  - **优点**:
+    - 文件小, 多个程序可以**共享内存**, 库热更新
+  - **缺点**:
+    - 部署麻烦
+  - 使用**场景**
+    - **插件**(容易变化)
+    - SDK/API
+    - 系统级库
 - INTERFACE
-  - 申明依赖关系,并不参与构建
+  - 目的: 申明依赖关系,并不参与构建
 - IMPORTED
   - 外部库
 - OBJECT
+  - **优点**:
+    - 减少编译次数
+    - 减少.a文件
+  - **缺点**:
+    - 不能被链接 : $<TARGET_OBJECTS:core>
 - ALIAS
 
 
@@ -332,3 +352,210 @@ target**两种**属性
 ## 注意:
 
 - 对于引用其它地方文件, 最好**不要直接**写路径. 而是通过**库的形式**去链接
+
+~~~cmake
+core/
+  utils.cpp
+  math.cpp
+
+libA/
+  algos.cpp
+
+libB/
+  filters.cpp
+~~~
+
+- 例题: .o, .a 关系? 数量关系?
+
+  - ~~~cpp
+    add_library(core STATIC
+        utils.cpp
+        math.cpp
+    )
+        
+    // 生成 .a
+    // 里面其实是:
+    // core.a
+    //  ├── utils.o
+    //  └── math.o
+        
+    add_library(libA STATIC
+        algos.cpp
+    )
+    
+    target_link_libraries(libA PUBLIC core)
+    //生成：
+    libA.a
+    
+    //里面只有：
+    libA.a
+     └── algos.o
+    
+    //注意：
+    
+    // 没有 utils.o
+    // 没有 math.o
+    // 虽然有 target_link_libraries(libA core)
+    // 但core 的代码没有被复制进去。
+        
+    // 为什么?
+    // 静态库不会链接, 只会记录依赖关系. 真正的链接发生在  
+        // 最终可执行文件
+        
+        
+        
+    // 最终程序出现时
+    add_executable(app main.cpp)
+    
+    target_link_libraries(app
+        libA
+        libB
+    )
+    
+    // 链接器会这样处理：
+    
+    main.o
+    algos.o
+    filters.o
+    utils.o
+    math.o
+    
+    // 它会从：
+    
+    libA.a
+    libB.a
+    core.a
+    
+    //中 挑选需要的 .o。
+    
+    // 最终：
+    
+    app
+     ├── main.o
+     ├── algos.o
+     ├── filters.o
+     ├── utils.o
+     └── math.o
+    ~~~
+
+  - .a 是一堆.o的**组合**
+
+  - 工业级构建规则 :
+
+    - 库 = 只包含自己的 .o
+    - 依赖库：只在**最终链接**时合并
+    - 链接器规则 : **同一个符号**只能存在**一份**
+
+  - 以上是争对**STAITC场景**
+
+  - **SHARED场景**
+
+    - ~~~c++
+      add_library(core SHARED utils.cpp math.cpp)
+      // 生成：
+      
+      // Linux
+      
+      // libcore.so
+      
+      // 程序：
+      
+      // app -> core.so
+      
+      // 最终：
+      
+      // app (不包含 core)
+      // core.so (单独文件)
+      
+      // 运行时：
+      
+      app
+       └── load core.so
+      
+      // 特点：
+      
+      // 多个程序共享一份 core.so
+      
+      // 例如：
+      
+      app1
+      app2
+      app3
+      
+      // 全部：
+      
+      // 使用同一个 core.so
+      
+      // 这就是动态库的最大特点：
+      
+      // 运行时共享代码
+          
+      ~~~
+
+    - 只能是一份,没有多份的情况
+
+    - **多个**程序可以连**同一块** 动态库内存
+
+  - **OBJECT 场景**:
+
+    - ~~~cmake
+      add_library(core OBJECT
+          utils.cpp
+          math.cpp
+      )
+      # 生成：
+      
+      utils.o
+      math.o
+      
+      # 但是：
+      
+      # 不会生成 core.a
+      
+      # 当你这样用：
+      
+      add_library(libA
+          algos.cpp
+          $<TARGET_OBJECTS:core>
+      )
+      
+      add_library(libB
+          filters.cpp
+          $<TARGET_OBJECTS:core>
+      )
+      
+      # 最终：
+      
+      libA
+       ├── algos.o
+       ├── utils.o
+       └── math.o
+      
+      libB
+       ├── filters.o
+       ├── utils.o
+       └── math.o
+      
+      #注意：
+      
+      #utils.o 被复制到了两个库
+      
+      #所以：
+      
+      OBJECT library
+      #不是共享
+      #而是复用编译结果
+      
+      #特点：
+      
+      # 编译一次
+      # 复制使用
+      
+      ~~~
+
+    - 编译一次, 复制使用
+
+  - INTERFACE
+
+    - 完全没有代码, 指定传播规则
+    - 与**.a不同**, 是一堆**未管理**的 **.o 集合**
