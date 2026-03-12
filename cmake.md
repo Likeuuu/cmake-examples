@@ -51,33 +51,81 @@ target**两种**属性
 ## target(类型)
 
 - **STATIC**
+
   - **优点**:
     - 运行时不依赖库, 部署简单, 不存在版本冲突. 代码保密
+
   - **缺点**:
     - 文件大,  多个程序内存**无法共享**
+
   - 使用**场景**
     - 核心**基础**模块(不怎么变化)
     - 部署麻烦的场景
+
 - **SHARED**
+
   - **优点**:
     - 文件小, 多个程序可以**共享内存**, 库热更新
+
   - **缺点**:
     - 部署麻烦
+
   - 使用**场景**
     - **插件**(容易变化)
     - SDK/API
     - 系统级库
-- INTERFACE
+
+- **INTERFACE**
+
   - 目的: 申明依赖关系,并不参与构建
-- IMPORTED
-  - 外部库
-- OBJECT
+
+- **IMPORTED**
+
+  - **目的**: 声明已存在的库
+
+  - ~~~cmake
+    # 手动找库
+    add_library(ssl SHARED IMPORTED)
+    
+    set_target_properties(ssl PROPERTIES
+        IMPORTED_LOCATION /usr/lib/libssl.so
+        INTERFACE_INCLUDE_DIRECTORIES /usr/include
+    )
+    
+    target_link_libraries(app ssl)
+    
+    # 更简单的做法  自动找库
+    find_package(fmt CONFIG REQUIRED PATHS /opt/mylib) # 库告知使用方式  没找到就报错  告知路径
+    find_package(fmt REQUIRED)  # 正常就这个
+    
+    target_link_libraries(app PRIVATE fmt::fmt)
+    ~~~
+
+  - 场景:
+
+    - 系统库
+    - SDK
+
+- **OBJECT**
+
   - **优点**:
     - 减少编译次数
     - 减少.a文件
+
   - **缺点**:
     - 不能被链接 : $<TARGET_OBJECTS:core>
-- ALIAS
+
+- **ALIAS**
+
+  - **目的**: 重命名, 解决命名冲突问题
+
+  - ~~~cmake
+    add_library(mylib STATIC src/a.cpp)
+    
+    add_library(project::mylib ALIAS mylib)
+    
+    target_link_libraries(app PRIVATE project::mylib)
+    ~~~
 
 
 
@@ -555,7 +603,14 @@ libB/
 
     - 编译一次, 复制使用
 
+    - 与 STATIC 的区别
+
+      - 与**.a不同**, 是一堆**未管理**的 **.o 集合**
+
+      - **STATIC**: 编译 + 链接 复用;   **OBJECT** : 编译复用
+
+      - **STATIC**: Packaging 级别.    **OBJECT** : 文件级别
+
   - INTERFACE
 
     - 完全没有代码, 指定传播规则
-    - 与**.a不同**, 是一堆**未管理**的 **.o 集合**
